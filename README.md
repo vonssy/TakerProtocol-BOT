@@ -10,7 +10,7 @@ Register Here : [Taker Protocol](https://earn.taker.xyz?start=RAGP0)
   - Auto Run With Private Proxy - Choose 2
   - Auto Run Without Proxy - Choose 3
   - Auto Actiavte Mining
-  - Auto Complete Avaialble Tasks
+  - Auto Complete Avaialble Tasks, Not All
   - Multi Accounta
 
 ## Requiremnets

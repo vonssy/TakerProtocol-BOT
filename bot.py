@@ -5,11 +5,11 @@ from aiohttp import (
 )
 from aiohttp_socks import ProxyConnector
 from fake_useragent import FakeUserAgent
-from web3 import Web3
-from eth_account import Account
 from eth_account.messages import encode_defunct
-from datetime import datetime
+from eth_account import Account
+from web3 import Web3
 from colorama import *
+from datetime import datetime
 import asyncio, time, json, os, pytz
 
 wib = pytz.timezone('Asia/Jakarta')
@@ -440,7 +440,6 @@ class TakerProtocol:
 
                     if timestamp >= reactive_time:
                         tx_hash = self.activate_mining(account)
-                        self.log(tx_hash)
                         if tx_hash:
                             start = await self.start_mining(token, proxy)
                             if start and start.get("data") == "ok":
