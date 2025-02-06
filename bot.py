@@ -372,161 +372,161 @@ class TakerProtocol:
                 await asyncio.sleep(3)
                 continue
 
-        token = await self.user_login(account, address, nonce, use_proxy)
-        if not token:
+            token = await self.user_login(account, address, nonce, proxy)
+            if not token:
+                self.log(
+                    f"{Fore.CYAN+Style.BRIGHT}Status    :{Style.RESET_ALL}"
+                    f"{Fore.RED+Style.BRIGHT} Login Failed {Style.RESET_ALL}"
+                )
+                return
+            
             self.log(
                 f"{Fore.CYAN+Style.BRIGHT}Status    :{Style.RESET_ALL}"
-                f"{Fore.RED+Style.BRIGHT} Login Failed {Style.RESET_ALL}"
+                f"{Fore.GREEN+Style.BRIGHT} Login Success {Style.RESET_ALL}"
             )
-            return
-        
-        self.log(
-            f"{Fore.CYAN+Style.BRIGHT}Status    :{Style.RESET_ALL}"
-            f"{Fore.GREEN+Style.BRIGHT} Login Success {Style.RESET_ALL}"
-        )
 
-        self.log(
-            f"{Fore.CYAN+Style.BRIGHT}Proxy     :{Style.RESET_ALL}"
-            f"{Fore.WHITE+Style.BRIGHT} {proxy} {Style.RESET_ALL}"
-        )
-        
-        balance = 0
-        tw_id = None
-
-        user = await self.user_info(token, proxy)
-        if user:
-            balance = f"{float(user.get('totalReward', 0)):.1f}"
-            tw_id = user.get('twId', None)
-
-        self.log(
-            f"{Fore.CYAN+Style.BRIGHT}Balance   :{Style.RESET_ALL}"
-            f"{Fore.WHITE+Style.BRIGHT} {balance} Opoints {Style.RESET_ALL}"
-        )
-
-        if tw_id is None:
             self.log(
-                f"{Fore.CYAN+Style.BRIGHT}Mining    :{Style.RESET_ALL}"
-                f"{Fore.RED+Style.BRIGHT} Not Eligible {Style.RESET_ALL}"
-                f"{Fore.MAGENTA+Style.BRIGHT}-{Style.RESET_ALL}"
-                f"{Fore.YELLOW+Style.BRIGHT} Connect Ur Social Media First {Style.RESET_ALL}"
+                f"{Fore.CYAN+Style.BRIGHT}Proxy     :{Style.RESET_ALL}"
+                f"{Fore.WHITE+Style.BRIGHT} {proxy} {Style.RESET_ALL}"
             )
-            self.log(
-                f"{Fore.CYAN+Style.BRIGHT}Task Lists:{Style.RESET_ALL}"
-                f"{Fore.RED+Style.BRIGHT} Not Eligible {Style.RESET_ALL}"
-                f"{Fore.MAGENTA+Style.BRIGHT}-{Style.RESET_ALL}"
-                f"{Fore.YELLOW+Style.BRIGHT} Connect Ur Social Media First {Style.RESET_ALL}"
-            )
-            return
-        
-        mining = await self.mining_info(token, proxy)
-        if mining:
-            last_mining = mining.get('lastMiningTime', 0)
+            
+            balance = 0
+            tw_id = None
 
-            if last_mining == 0:
-                start = await self.start_mining(token, proxy)
-                if start and start.get("data") == "ok":
-                    self.log(
-                        f"{Fore.CYAN+Style.BRIGHT}Mining    :{Style.RESET_ALL}"
-                        f"{Fore.GREEN+Style.BRIGHT} Is Started {Style.RESET_ALL}"
-                    )
+            user = await self.user_info(token, proxy)
+            if user:
+                balance = f"{float(user.get('totalReward', 0)):.1f}"
+                tw_id = user.get('twId', None)
+
+            self.log(
+                f"{Fore.CYAN+Style.BRIGHT}Balance   :{Style.RESET_ALL}"
+                f"{Fore.WHITE+Style.BRIGHT} {balance} Opoints {Style.RESET_ALL}"
+            )
+
+            if tw_id is None:
+                self.log(
+                    f"{Fore.CYAN+Style.BRIGHT}Mining    :{Style.RESET_ALL}"
+                    f"{Fore.RED+Style.BRIGHT} Not Eligible {Style.RESET_ALL}"
+                    f"{Fore.MAGENTA+Style.BRIGHT}-{Style.RESET_ALL}"
+                    f"{Fore.YELLOW+Style.BRIGHT} Connect Ur Social Media First {Style.RESET_ALL}"
+                )
+                self.log(
+                    f"{Fore.CYAN+Style.BRIGHT}Task Lists:{Style.RESET_ALL}"
+                    f"{Fore.RED+Style.BRIGHT} Not Eligible {Style.RESET_ALL}"
+                    f"{Fore.MAGENTA+Style.BRIGHT}-{Style.RESET_ALL}"
+                    f"{Fore.YELLOW+Style.BRIGHT} Connect Ur Social Media First {Style.RESET_ALL}"
+                )
+                return
+            
+            mining = await self.mining_info(token, proxy)
+            if mining:
+                last_mining = mining.get('lastMiningTime', 0)
+
+                if last_mining == 0:
+                    start = await self.start_mining(token, proxy)
+                    if start and start.get("data") == "ok":
+                        self.log(
+                            f"{Fore.CYAN+Style.BRIGHT}Mining    :{Style.RESET_ALL}"
+                            f"{Fore.GREEN+Style.BRIGHT} Is Started {Style.RESET_ALL}"
+                        )
+                    else:
+                        self.log(
+                            f"{Fore.CYAN+Style.BRIGHT}Mining    :{Style.RESET_ALL}"
+                            f"{Fore.RED+Style.BRIGHT} Isn't Started {Style.RESET_ALL}"
+                        )
                 else:
-                    self.log(
-                        f"{Fore.CYAN+Style.BRIGHT}Mining    :{Style.RESET_ALL}"
-                        f"{Fore.RED+Style.BRIGHT} Isn't Started {Style.RESET_ALL}"
-                    )
-            else:
-                timestamp = int(time.time())
-                reactive_time = last_mining + 86400
+                    timestamp = int(time.time())
+                    reactive_time = last_mining + 86400
 
-                if timestamp >= reactive_time:
-                    tx_hash = self.activate_mining(account)
-                    self.log(tx_hash)
-                    if tx_hash:
-                        start = await self.start_mining(token, proxy)
-                        if start and start.get("data") == "ok":
-                            self.log(
-                                f"{Fore.CYAN+Style.BRIGHT}Mining    :{Style.RESET_ALL}"
-                                f"{Fore.GREEN+Style.BRIGHT} Is Activated {Style.RESET_ALL}"
-                            )
-                            self.log(
-                                f"{Fore.CYAN+Style.BRIGHT}      >{Style.RESET_ALL}"
-                                f"{Fore.WHITE+Style.BRIGHT} Tx Hash: {Style.RESET_ALL}"
-                                f"{Fore.BLUE+Style.BRIGHT}{self.mask_account(tx_hash)}{Style.RESET_ALL}"
-                            )
+                    if timestamp >= reactive_time:
+                        tx_hash = self.activate_mining(account)
+                        self.log(tx_hash)
+                        if tx_hash:
+                            start = await self.start_mining(token, proxy)
+                            if start and start.get("data") == "ok":
+                                self.log(
+                                    f"{Fore.CYAN+Style.BRIGHT}Mining    :{Style.RESET_ALL}"
+                                    f"{Fore.GREEN+Style.BRIGHT} Is Activated {Style.RESET_ALL}"
+                                )
+                                self.log(
+                                    f"{Fore.CYAN+Style.BRIGHT}      >{Style.RESET_ALL}"
+                                    f"{Fore.WHITE+Style.BRIGHT} Tx Hash: {Style.RESET_ALL}"
+                                    f"{Fore.BLUE+Style.BRIGHT}{self.mask_account(tx_hash)}{Style.RESET_ALL}"
+                                )
+                            else:
+                                self.log(
+                                    f"{Fore.CYAN+Style.BRIGHT}Mining    :{Style.RESET_ALL}"
+                                    f"{Fore.RED+Style.BRIGHT} Isn't Activated {Style.RESET_ALL}"
+                                )
                         else:
                             self.log(
                                 f"{Fore.CYAN+Style.BRIGHT}Mining    :{Style.RESET_ALL}"
                                 f"{Fore.RED+Style.BRIGHT} Isn't Activated {Style.RESET_ALL}"
+                                f"{Fore.MAGENTA+Style.BRIGHT}-{Style.RESET_ALL}"
+                                f"{Fore.YELLOW+Style.BRIGHT} OnChain Tx Failed {Style.RESET_ALL}"
                             )
                     else:
+                        test = datetime.fromtimestamp(reactive_time).astimezone(wib).strftime('%x %X %Z')
                         self.log(
                             f"{Fore.CYAN+Style.BRIGHT}Mining    :{Style.RESET_ALL}"
-                            f"{Fore.RED+Style.BRIGHT} Isn't Activated {Style.RESET_ALL}"
+                            f"{Fore.YELLOW+Style.BRIGHT} Is Already Activated {Style.RESET_ALL}"
                             f"{Fore.MAGENTA+Style.BRIGHT}-{Style.RESET_ALL}"
-                            f"{Fore.YELLOW+Style.BRIGHT} OnChain Tx Failed {Style.RESET_ALL}"
+                            f"{Fore.CYAN+Style.BRIGHT} Next Activate at {Style.RESET_ALL}"
+                            f"{Fore.WHITE+Style.BRIGHT}{test}{Style.RESET_ALL}"
                         )
-                else:
-                    test = datetime.fromtimestamp(reactive_time).astimezone(wib).strftime('%x %X %Z')
-                    self.log(
-                        f"{Fore.CYAN+Style.BRIGHT}Mining    :{Style.RESET_ALL}"
-                        f"{Fore.YELLOW+Style.BRIGHT} Is Already Activated {Style.RESET_ALL}"
-                        f"{Fore.MAGENTA+Style.BRIGHT}-{Style.RESET_ALL}"
-                        f"{Fore.CYAN+Style.BRIGHT} Next Activate at {Style.RESET_ALL}"
-                        f"{Fore.WHITE+Style.BRIGHT}{test}{Style.RESET_ALL}"
-                    )
 
-        else:
-            self.log(
-                f"{Fore.CYAN+Style.BRIGHT}Mining    :{Style.RESET_ALL}"
-                f"{Fore.RED+Style.BRIGHT} Data Is None {Style.RESET_ALL}"
-            )
+            else:
+                self.log(
+                    f"{Fore.CYAN+Style.BRIGHT}Mining    :{Style.RESET_ALL}"
+                    f"{Fore.RED+Style.BRIGHT} Data Is None {Style.RESET_ALL}"
+                )
 
-        tasks = await self.task_lists(token, proxy)
-        if tasks:
-            self.log(
-                f"{Fore.CYAN+Style.BRIGHT}Task Lists:{Style.RESET_ALL}"
-                f"{Fore.GREEN+Style.BRIGHT} Available {Style.RESET_ALL}"
-                f"{Fore.WHITE+Style.BRIGHT}{len(tasks)} Tasks{Style.RESET_ALL}"
-            )
+            tasks = await self.task_lists(token, proxy)
+            if tasks:
+                self.log(
+                    f"{Fore.CYAN+Style.BRIGHT}Task Lists:{Style.RESET_ALL}"
+                    f"{Fore.GREEN+Style.BRIGHT} Available {Style.RESET_ALL}"
+                    f"{Fore.WHITE+Style.BRIGHT}{len(tasks)} Tasks{Style.RESET_ALL}"
+                )
 
-            for task in tasks:
-                if task:
-                    task_id = task["assignmentId"]
-                    title = task['title']
-                    reward = task['reward']
-                    is_done = task["done"]
+                for task in tasks:
+                    if task:
+                        task_id = task["assignmentId"]
+                        title = task['title']
+                        reward = task['reward']
+                        is_done = task["done"]
 
-                    if is_done:
-                        self.log(
-                            f"{Fore.CYAN+Style.BRIGHT}      > {Style.RESET_ALL}"
-                            f"{Fore.WHITE+Style.BRIGHT}{title}{Style.RESET_ALL}"
-                            f"{Fore.YELLOW+Style.BRIGHT} Is Already Completed {Style.RESET_ALL}"
-                        )
-                        continue
+                        if is_done:
+                            self.log(
+                                f"{Fore.CYAN+Style.BRIGHT}      > {Style.RESET_ALL}"
+                                f"{Fore.WHITE+Style.BRIGHT}{title}{Style.RESET_ALL}"
+                                f"{Fore.YELLOW+Style.BRIGHT} Is Already Completed {Style.RESET_ALL}"
+                            )
+                            continue
 
-                    complete = await self.complete_tasks(token, task_id, title, proxy)
-                    if complete:
-                        self.log(
-                            f"{Fore.CYAN+Style.BRIGHT}      > {Style.RESET_ALL}"
-                            f"{Fore.WHITE+Style.BRIGHT}{title}{Style.RESET_ALL}"
-                            f"{Fore.GREEN+Style.BRIGHT} Is Completed {Style.RESET_ALL}"
-                            f"{Fore.MAGENTA+Style.BRIGHT}-{Style.RESET_ALL}"
-                            f"{Fore.CYAN+Style.BRIGHT} Reward {Style.RESET_ALL}"
-                            f"{Fore.WHITE+Style.BRIGHT}{reward} Opoints{Style.RESET_ALL}"
-                        )
-                    else:
-                        self.log(
-                            f"{Fore.CYAN+Style.BRIGHT}      > {Style.RESET_ALL}"
-                            f"{Fore.WHITE+Style.BRIGHT}{title}{Style.RESET_ALL}"
-                            f"{Fore.RED+Style.BRIGHT} Not Completed {Style.RESET_ALL}"
-                        )
-                    await asyncio.sleep(1)
+                        complete = await self.complete_tasks(token, task_id, title, proxy)
+                        if complete:
+                            self.log(
+                                f"{Fore.CYAN+Style.BRIGHT}      > {Style.RESET_ALL}"
+                                f"{Fore.WHITE+Style.BRIGHT}{title}{Style.RESET_ALL}"
+                                f"{Fore.GREEN+Style.BRIGHT} Is Completed {Style.RESET_ALL}"
+                                f"{Fore.MAGENTA+Style.BRIGHT}-{Style.RESET_ALL}"
+                                f"{Fore.CYAN+Style.BRIGHT} Reward {Style.RESET_ALL}"
+                                f"{Fore.WHITE+Style.BRIGHT}{reward} Opoints{Style.RESET_ALL}"
+                            )
+                        else:
+                            self.log(
+                                f"{Fore.CYAN+Style.BRIGHT}      > {Style.RESET_ALL}"
+                                f"{Fore.WHITE+Style.BRIGHT}{title}{Style.RESET_ALL}"
+                                f"{Fore.RED+Style.BRIGHT} Not Completed {Style.RESET_ALL}"
+                            )
+                        await asyncio.sleep(1)
 
-        else:
-            self.log(
-                f"{Fore.CYAN+Style.BRIGHT}Task Lists:{Style.RESET_ALL}"
-                f"{Fore.GREEN+Style.BRIGHT} Data Is None {Style.RESET_ALL}"
-            )
+            else:
+                self.log(
+                    f"{Fore.CYAN+Style.BRIGHT}Task Lists:{Style.RESET_ALL}"
+                    f"{Fore.GREEN+Style.BRIGHT} Data Is None {Style.RESET_ALL}"
+                )
 
     async def main(self):
         try:
