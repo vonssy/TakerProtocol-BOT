@@ -332,7 +332,7 @@ class TakerProtocol:
 
                 return None
     
-    async def complete_tasks(self, token: str, task_id: int, title: str, proxy=None, retries=5):
+    async def complete_tasks(self, token: str, task_id: int, proxy=None, retries=5):
         url = "https://lightmining-api.taker.xyz/assignment/do"
         data = json.dumps({"assignmentId":task_id})
         headers = {
@@ -502,7 +502,7 @@ class TakerProtocol:
                             )
                             continue
 
-                        complete = await self.complete_tasks(token, task_id, title, proxy)
+                        complete = await self.complete_tasks(token, task_id, proxy)
                         if complete:
                             self.log(
                                 f"{Fore.CYAN+Style.BRIGHT}      > {Style.RESET_ALL}"
