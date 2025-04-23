@@ -28,9 +28,8 @@ class TakerProtocol:
             "Sec-Fetch-Site": "same-site",
             "User-Agent": FakeUserAgent().random
         }
-        self.proxies = []
-        self.proxy_index = 0
-        self.account_proxies = {}
+        self.ref_code = "RAGP0" # U can change it with yours.
+        self.BASE_API = "https://lightmining-api.taker.xyz"
         self.RPC_URL = "https://rpc-mainnet.taker.xyz/"
         self.CONTRACT_ADDRESS = "0xB3eFE5105b835E5Dd9D206445Dbd66DF24b912AB"
         self.CONTRACT_ABI = [
@@ -44,6 +43,9 @@ class TakerProtocol:
                 "type": "function"
             }
         ]
+        self.proxies = []
+        self.proxy_index = 0
+        self.account_proxies = {}
 
     def clear_terminal(self):
         os.system('cls' if os.name == 'nt' else 'clear')
@@ -141,7 +143,7 @@ class TakerProtocol:
 
             data = {
                 "address":address, 
-                "invitationCode":"RAGP0", 
+                "invitationCode":self.ref_code, 
                 "message":nonce, 
                 "signature":signature
             }
@@ -150,22 +152,21 @@ class TakerProtocol:
         except Exception as e:
             return None
         
-    def activate_mining(self, private_key):
+    async def perform_onchain(self, account: str, address: str):
         web3 = Web3(Web3.HTTPProvider(self.RPC_URL))
-        account = web3.eth.account.from_key(private_key)
         contract = web3.eth.contract(address=self.CONTRACT_ADDRESS, abi=self.CONTRACT_ABI)
 
         try:
-            estimated_gas = contract.functions.active().estimate_gas({'from': account.address})
+            estimated_gas = contract.functions.active().estimate_gas({'from': address})
             gas_price = web3.eth.gas_price
             tx = contract.functions.active().build_transaction({
-                'from': account.address,
-                'nonce': web3.eth.get_transaction_count(account.address),
+                'from': address,
+                'nonce': web3.eth.get_transaction_count(address),
                 'gas': estimated_gas,
                 'gasPrice': gas_price
             })
 
-            signed_tx = web3.eth.account.sign_transaction(tx, private_key)
+            signed_tx = web3.eth.account.sign_transaction(tx, account)
             tx_hash = web3.eth.send_raw_transaction(signed_tx.raw_transaction)
 
             return tx_hash.hex()
@@ -197,31 +198,28 @@ class TakerProtocol:
             except ValueError:
                 print(f"{Fore.RED + Style.BRIGHT}Invalid input. Enter a number (1, 2 or 3).{Style.RESET_ALL}")
         
-    async def generate_nonce(self, address: str, proxy=None, retries=5):
-        url = "https://lightmining-api.taker.xyz/wallet/generateNonce"
+    async def generate_nonce(self, address: str, proxy=None):
+        url = f"{self.BASE_API}/wallet/generateNonce"
         data = json.dumps({"walletAddress":address})
         headers = {
             **self.headers,
             "Content-Length": str(len(data)),
             "Content-Type": "application/json"
         }
-        for attempt in range(retries):
-            connector = ProxyConnector.from_url(proxy) if proxy else None
-            try:
-                async with ClientSession(connector=connector, timeout=ClientTimeout(total=120)) as session:
-                    async with session.post(url=url, headers=headers, data=data) as response:
-                        response.raise_for_status()
-                        result = await response.json()
-                        return result['data']['nonce']
-            except (Exception, ClientResponseError) as e:
-                if attempt < retries - 1:
-                    await asyncio.sleep(5)
-                    continue
-
-                return None
+        connector = ProxyConnector.from_url(proxy) if proxy else None
+        try:
+            async with ClientSession(connector=connector, timeout=ClientTimeout(total=120)) as session:
+                async with session.post(url=url, headers=headers, data=data) as response:
+                    response.raise_for_status()
+                    result = await response.json()
+                    if "nonce" in result.get("data", None):
+                        return result["data"]["nonce"]
+                    return None
+        except (Exception, ClientResponseError) as e:
+            return None
     
     async def user_login(self, account: str, address: str, nonce: str, proxy=None, retries=5):
-        url = "https://lightmining-api.taker.xyz/wallet/login"
+        url = f"{self.BASE_API}/wallet/login"
         data = json.dumps(self.generate_payload(account, address, nonce))
         headers = {
             **self.headers,
@@ -235,7 +233,7 @@ class TakerProtocol:
                     async with session.post(url=url, headers=headers, data=data) as response:
                         response.raise_for_status()
                         result = await response.json()
-                        return result['data']['token']
+                        return result["data"]["token"]
             except (Exception, ClientResponseError) as e:
                 if attempt < retries - 1:
                     await asyncio.sleep(5)
@@ -244,7 +242,7 @@ class TakerProtocol:
                 return None
     
     async def user_info(self, token: str, proxy=None, retries=5):
-        url = "https://lightmining-api.taker.xyz/user/getUserInfo"
+        url = f"{self.BASE_API}/user/getUserInfo"
         headers = {
             **self.headers,
             "Authorization": f"Bearer {token}",
@@ -257,7 +255,7 @@ class TakerProtocol:
                     async with session.get(url=url, headers=headers) as response:
                         response.raise_for_status()
                         result = await response.json()
-                        return result['data']
+                        return result["data"]
             except (Exception, ClientResponseError) as e:
                 if attempt < retries - 1:
                     await asyncio.sleep(5)
@@ -266,7 +264,7 @@ class TakerProtocol:
                 return None
     
     async def mining_info(self, token: str, proxy=None, retries=5):
-        url = "https://lightmining-api.taker.xyz/assignment/totalMiningTime"
+        url = f"{self.BASE_API}/assignment/totalMiningTime"
         headers = {
             **self.headers,
             "Authorization": f"Bearer {token}",
@@ -279,7 +277,7 @@ class TakerProtocol:
                     async with session.get(url=url, headers=headers) as response:
                         response.raise_for_status()
                         result = await response.json()
-                        return result['data']
+                        return result["data"]
             except (Exception, ClientResponseError) as e:
                 if attempt < retries - 1:
                     await asyncio.sleep(5)
@@ -287,19 +285,20 @@ class TakerProtocol:
 
                 return None
     
-    async def start_mining(self, token: str, proxy=None, retries=5):
-        url = "https://lightmining-api.taker.xyz/assignment/startMining"
+    async def start_mining(self, token: str, status: bool, proxy=None, retries=5):
+        url = f"{self.BASE_API}/assignment/startMining"
+        data = json.dumps({"status":status})
         headers = {
             **self.headers,
             "Authorization": f"Bearer {token}",
-            "Content-Length": "0",
+            "Content-Length": str(len(data)),
             "Content-Type": "application/json"
         }
         for attempt in range(retries):
             connector = ProxyConnector.from_url(proxy) if proxy else None
             try:
                 async with ClientSession(connector=connector, timeout=ClientTimeout(total=120)) as session:
-                    async with session.post(url=url, headers=headers) as response:
+                    async with session.post(url=url, headers=headers, data=data) as response:
                         response.raise_for_status()
                         return await response.json()
             except (Exception, ClientResponseError) as e:
@@ -310,7 +309,7 @@ class TakerProtocol:
                 return None
             
     async def task_lists(self, token: str, proxy=None, retries=5):
-        url = "https://lightmining-api.taker.xyz/assignment/list"
+        url = f"{self.BASE_API}/assignment/list"
         headers = {
             **self.headers,
             "Authorization": f"Bearer {token}",
@@ -324,7 +323,7 @@ class TakerProtocol:
                     async with session.post(url=url, headers=headers) as response:
                         response.raise_for_status()
                         result = await response.json()
-                        return result['data']
+                        return result["data"]
             except (Exception, ClientResponseError) as e:
                 if attempt < retries - 1:
                     await asyncio.sleep(5)
@@ -333,7 +332,7 @@ class TakerProtocol:
                 return None
     
     async def complete_tasks(self, token: str, task_id: int, proxy=None, retries=5):
-        url = "https://lightmining-api.taker.xyz/assignment/do"
+        url = f"{self.BASE_API}/assignment/do"
         data = json.dumps({"assignmentId":task_id})
         headers = {
             **self.headers,
@@ -348,7 +347,7 @@ class TakerProtocol:
                     async with session.post(url=url, headers=headers, data=data) as response:
                         response.raise_for_status()
                         result = await response.json()
-                        return result['data']
+                        return result["data"]
             except (Exception, ClientResponseError) as e:
                 if attempt < retries - 1:
                     await asyncio.sleep(5)
@@ -422,7 +421,7 @@ class TakerProtocol:
                 last_mining = mining.get('lastMiningTime', 0)
 
                 if last_mining == 0:
-                    start = await self.start_mining(token, proxy)
+                    start = await self.start_mining(token, True, proxy)
                     if start and start.get("data") == "ok":
                         self.log(
                             f"{Fore.CYAN+Style.BRIGHT}Mining    :{Style.RESET_ALL}"
@@ -438,9 +437,9 @@ class TakerProtocol:
                     reactive_time = last_mining + 86400
 
                     if timestamp >= reactive_time:
-                        tx_hash = self.activate_mining(account)
+                        tx_hash = await self.perform_onchain(account, address)
                         if tx_hash:
-                            start = await self.start_mining(token, proxy)
+                            start = await self.start_mining(token, False, proxy)
                             if start and start.get("data") == "ok":
                                 self.log(
                                     f"{Fore.CYAN+Style.BRIGHT}Mining    :{Style.RESET_ALL}"
