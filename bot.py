@@ -6,6 +6,7 @@ from aiohttp import (
 from aiohttp_socks import ProxyConnector
 from fake_useragent import FakeUserAgent
 from eth_account.messages import encode_defunct
+from eth_utils import to_hex
 from eth_account import Account
 from web3 import Web3
 from colorama import *
