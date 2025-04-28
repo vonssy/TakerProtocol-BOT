@@ -6,6 +6,7 @@ from aiohttp import (
 from aiohttp_socks import ProxyConnector
 from fake_useragent import FakeUserAgent
 from eth_account.messages import encode_defunct
+from eth_utils import to_hex
 from eth_account import Account
 from web3 import Web3
 from colorama import *
@@ -139,16 +140,16 @@ class TakerProtocol:
         try:
             encoded_message = encode_defunct(text=nonce)
             signed_message = Account.sign_message(encoded_message, private_key=account)
-            signature = signed_message.signature.hex()
+            signature = to_hex(signed_message.signature)
 
-            data = {
+            payload = {
                 "address":address, 
                 "invitationCode":self.ref_code, 
                 "message":nonce, 
                 "signature":signature
             }
             
-            return data
+            return payload
         except Exception as e:
             return None
         
@@ -159,6 +160,7 @@ class TakerProtocol:
         try:
             estimated_gas = contract.functions.active().estimate_gas({'from': address})
             gas_price = web3.eth.gas_price
+            
             tx = contract.functions.active().build_transaction({
                 'from': address,
                 'nonce': web3.eth.get_transaction_count(address),
@@ -167,9 +169,10 @@ class TakerProtocol:
             })
 
             signed_tx = web3.eth.account.sign_transaction(tx, account)
-            tx_hash = web3.eth.send_raw_transaction(signed_tx.raw_transaction)
+            raw_tx = web3.eth.send_raw_transaction(signed_tx.raw_transaction)
+            tx_hash = web3.to_hex(raw_tx)
 
-            return tx_hash.hex()
+            return tx_hash
         except Exception as e:
             return None
     
@@ -238,7 +241,6 @@ class TakerProtocol:
                 if attempt < retries - 1:
                     await asyncio.sleep(5)
                     continue
-
                 return None
     
     async def user_info(self, token: str, proxy=None, retries=5):
@@ -260,7 +262,6 @@ class TakerProtocol:
                 if attempt < retries - 1:
                     await asyncio.sleep(5)
                     continue
-
                 return None
     
     async def mining_info(self, token: str, proxy=None, retries=5):
@@ -282,7 +283,6 @@ class TakerProtocol:
                 if attempt < retries - 1:
                     await asyncio.sleep(5)
                     continue
-
                 return None
     
     async def start_mining(self, token: str, status: bool, proxy=None, retries=5):
@@ -305,7 +305,6 @@ class TakerProtocol:
                 if attempt < retries - 1:
                     await asyncio.sleep(5)
                     continue
-
                 return None
             
     async def task_lists(self, token: str, proxy=None, retries=5):
@@ -328,7 +327,6 @@ class TakerProtocol:
                 if attempt < retries - 1:
                     await asyncio.sleep(5)
                     continue
-
                 return None
     
     async def complete_tasks(self, token: str, task_id: int, proxy=None, retries=5):
@@ -352,7 +350,6 @@ class TakerProtocol:
                 if attempt < retries - 1:
                     await asyncio.sleep(5)
                     continue
-
                 return None
             
     async def process_accounts(self, account: str, address: str, use_proxy: bool):
@@ -448,7 +445,7 @@ class TakerProtocol:
                                 self.log(
                                     f"{Fore.CYAN+Style.BRIGHT}      >{Style.RESET_ALL}"
                                     f"{Fore.WHITE+Style.BRIGHT} Tx Hash: {Style.RESET_ALL}"
-                                    f"{Fore.BLUE+Style.BRIGHT}{self.mask_account(tx_hash)}{Style.RESET_ALL}"
+                                    f"{Fore.BLUE+Style.BRIGHT}{tx_hash}{Style.RESET_ALL}"
                                 )
                             else:
                                 self.log(
