@@ -1,15 +1,16 @@
-# Taker Protocol BOT
-Taker Protocol BOT
+# Taker Lite Mining - Taker Protocol BOT
+Taker Lite Mining - Taker Protocol BOT
 
-Register Here : [Taker Protocol](https://earn.taker.xyz?start=RAGP0)
+Register Here : [Taker Lite Mining - Taker Protocol](https://earn.taker.xyz?start=RAGP0)
 
-## Fitur
+## Features
 
   - Auto Get Account Information
-  - Auto Run With [Monosans](https://raw.githubusercontent.com/monosans/proxy-list/main/proxies/all.txt) Proxy - Choose 1
-  - Auto Run With Private Proxy - Choose 2
-  - Auto Run Without Proxy - Choose 3
-  - Auto Actiavte Mining
+  - Auto Run With [Monosans](https://raw.githubusercontent.com/monosans/proxy-list/main/proxies/all.txt) Proxy - `Choose 1`
+  - Auto Run With Private Proxy - `Choose 2`
+  - Auto Run Without Proxy - `Choose 3`
+  - Auto Rotate Invalid Proxies - `y` or `n`
+  - Auto Perform On-Chain Txn & Actiavte Mining
   - Auto Complete Avaialble Tasks, Not All
   - Multi Accounta
 
@@ -37,8 +38,8 @@ Register Here : [Taker Protocol](https://earn.taker.xyz?start=RAGP0)
 - **accounts.txt:** You will find the file `accounts.txt` inside the project directory. Make sure `accounts.txt` contains data that matches the format expected by the script. Here are examples of file formats:
 
   ```bash
-  your_secret_key_1
-  your_secret_key_2
+    your_private_key_1
+    your_private_key_2
   ```
 
 - **proxy.txt:** You will find the file `proxy.txt` inside the project directory. Make sure `proxy.txt` contains data that matches the format expected by the script. Here are examples of file formats:
