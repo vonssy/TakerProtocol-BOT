@@ -517,7 +517,7 @@ class TakerProtocol:
                                 self.log(
                                     f"{Fore.CYAN+Style.BRIGHT}     ●{Style.RESET_ALL}"
                                     f"{Fore.WHITE+Style.BRIGHT} Block Number: {Style.RESET_ALL}"
-                                    f"{Fore.BLUE+Style.BRIGHT}{tx_hash}{Style.RESET_ALL}"
+                                    f"{Fore.BLUE+Style.BRIGHT}{block_number}{Style.RESET_ALL}"
                                 )
                                 self.log(
                                     f"{Fore.CYAN+Style.BRIGHT}     ●{Style.RESET_ALL}"
