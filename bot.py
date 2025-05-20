@@ -31,8 +31,8 @@ class TakerProtocol:
         }
         self.BASE_API = "https://lightmining-api.taker.xyz"
         self.RPC_URL = "https://rpc-mainnet.taker.xyz/"
-        self.CONTRACT_ADDRESS = "0xB3eFE5105b835E5Dd9D206445Dbd66DF24b912AB"
-        self.CONTRACT_ABI = [
+        self.ACTIVATE_ROUTER_ADDRESS = "0xB3eFE5105b835E5Dd9D206445Dbd66DF24b912AB"
+        self.ACTIVATE_CONTRACT_ABI = [
             {
                 "constant": False,
                 "inputs": [],
@@ -153,27 +153,58 @@ class TakerProtocol:
         except Exception as e:
             return None
         
-    async def perform_onchain_txn(self, account: str, address: str):
-        web3 = Web3(Web3.HTTPProvider(self.RPC_URL))
-        contract = web3.eth.contract(address=self.CONTRACT_ADDRESS, abi=self.CONTRACT_ABI)
-
+    async def get_web3_with_check(self, retries=3, timeout=60):
+        for i in range(retries):
+            try:
+                web3 = Web3(Web3.HTTPProvider(self.RPC_URL, request_kwargs={"timeout": timeout}))
+                web3.eth.get_block_number()
+                return web3
+            except Exception as e:
+                await asyncio.sleep(3)
+        raise Exception("Failed to Connect to RPC")
+        
+    async def get_token_balance(self, address: str):
         try:
-            estimated_gas = contract.functions.active().estimate_gas({'from': address})
-            tx = contract.functions.active().build_transaction({
-                'from': address,
-                'nonce': web3.eth.get_transaction_count(address),
-                'gas': estimated_gas,
-                'gasPrice': web3.eth.gas_price
+            web3 = await self.get_web3_with_check()
+
+            balance = web3.eth.get_balance(address)
+            token_balance = balance / (10 ** 18)
+
+            return token_balance
+        except Exception as e:
+            return None
+        
+    async def perform_onchain(self, account: str, address: str):
+        try:
+            web3 = await self.get_web3_with_check()
+            contract_address = web3.to_checksum_address(self.ACTIVATE_ROUTER_ADDRESS)
+            token_contract = web3.eth.contract(address=contract_address, abi=self.ACTIVATE_CONTRACT_ABI)
+
+            active_data = token_contract.functions.active()
+            estimated_gas = active_data.estimate_gas({"from": address})
+
+            tx = token_contract.functions.active().build_transaction({
+                "from": address,
+                "nonce": web3.eth.get_transaction_count(address, "pending"),
+                "gas": int(estimated_gas),
+                "gasPrice": web3.eth.gas_price
             })
 
             signed_tx = web3.eth.account.sign_transaction(tx, account)
             raw_tx = web3.eth.send_raw_transaction(signed_tx.raw_transaction)
             tx_hash = web3.to_hex(raw_tx)
-            receipt = web3.eth.wait_for_transaction_receipt(tx_hash)
+            receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
             block_number = receipt.blockNumber
 
             return tx_hash, block_number
         except Exception as e:
+            self.log(
+                f"{Fore.MAGENTA+Style.BRIGHT}   ● {Style.RESET_ALL}"
+                f"{Fore.CYAN+Style.BRIGHT}Status  :{Style.RESET_ALL}"
+                f"{Fore.RED+Style.BRIGHT} Perform On-Chain Failed {Style.RESET_ALL}"
+                f"{Fore.MAGENTA+Style.BRIGHT}-{Style.RESET_ALL}"
+                f"{Fore.YELLOW+Style.BRIGHT} {str(e)} {Style.RESET_ALL}"
+            )
             return None, None
     
     def mask_account(self, account):
@@ -232,6 +263,7 @@ class TakerProtocol:
             "Content-Length": str(len(data)),
             "Content-Type": "application/json"
         }
+        await asyncio.sleep(3)
         connector = ProxyConnector.from_url(proxy) if proxy else None
         try:
             async with ClientSession(connector=connector, timeout=ClientTimeout(total=120)) as session:
@@ -252,6 +284,7 @@ class TakerProtocol:
             "Content-Length": str(len(data)),
             "Content-Type": "application/json"
         }
+        await asyncio.sleep(3)
         for attempt in range(retries):
             connector = ProxyConnector.from_url(proxy) if proxy else None
             try:
@@ -272,6 +305,7 @@ class TakerProtocol:
             **self.headers,
             "Authorization": f"Bearer {token}"
         }
+        await asyncio.sleep(3)
         for attempt in range(retries):
             connector = ProxyConnector.from_url(proxy) if proxy else None
             try:
@@ -291,6 +325,7 @@ class TakerProtocol:
             **self.headers,
             "Authorization": f"Bearer {token}"
         }
+        await asyncio.sleep(3)
         for attempt in range(retries):
             connector = ProxyConnector.from_url(proxy) if proxy else None
             try:
@@ -313,55 +348,18 @@ class TakerProtocol:
             "Content-Length": str(len(data)),
             "Content-Type": "application/json"
         }
+        await asyncio.sleep(3)
         for attempt in range(retries):
             connector = ProxyConnector.from_url(proxy) if proxy else None
             try:
                 async with ClientSession(connector=connector, timeout=ClientTimeout(total=120)) as session:
                     async with session.post(url=url, headers=headers, data=data) as response:
                         response.raise_for_status()
-                        return await response.json()
-            except (Exception, ClientResponseError) as e:
-                if attempt < retries - 1:
-                    await asyncio.sleep(5)
-                    continue
-                return None
-            
-    async def task_lists(self, token: str, proxy=None, retries=5):
-        url = f"{self.BASE_API}/assignment/list"
-        headers = {
-            **self.headers,
-            "Authorization": f"Bearer {token}",
-            "Content-Length": "0"
-        }
-        for attempt in range(retries):
-            connector = ProxyConnector.from_url(proxy) if proxy else None
-            try:
-                async with ClientSession(connector=connector, timeout=ClientTimeout(total=120)) as session:
-                    async with session.post(url=url, headers=headers) as response:
-                        response.raise_for_status()
-                        return await response.json()
-            except (Exception, ClientResponseError) as e:
-                if attempt < retries - 1:
-                    await asyncio.sleep(5)
-                    continue
-                return None
-    
-    async def complete_tasks(self, token: str, task_id: int, proxy=None, retries=5):
-        url = f"{self.BASE_API}/assignment/do"
-        data = json.dumps({"assignmentId":task_id})
-        headers = {
-            **self.headers,
-            "Authorization": f"Bearer {token}",
-            "Content-Length": str(len(data)),
-            "Content-Type": "application/json"
-        }
-        for attempt in range(retries):
-            connector = ProxyConnector.from_url(proxy) if proxy else None
-            try:
-                async with ClientSession(connector=connector, timeout=ClientTimeout(total=120)) as session:
-                    async with session.post(url=url, headers=headers, data=data) as response:
-                        response.raise_for_status()
-                        return await response.json()
+                        result = await response.json()
+                        if "data" in result and result["data"] != "ok":
+                            await asyncio.sleep(5)
+                            continue
+                        return result
             except (Exception, ClientResponseError) as e:
                 if attempt < retries - 1:
                     await asyncio.sleep(5)
@@ -427,6 +425,53 @@ class TakerProtocol:
 
         return True
         
+    async def process_activate_mining(self, account: str, address: str):
+        self.log(f"{Fore.CYAN+Style.BRIGHT}Mining    :{Style.RESET_ALL}")
+
+        balance = await self.get_token_balance(address)
+        tx_fees = 60305000000 / (10 ** 18)
+        self.log(
+            f"{Fore.MAGENTA+Style.BRIGHT}   ● {Style.RESET_ALL}"
+            f"{Fore.CYAN+Style.BRIGHT}Balance :{Style.RESET_ALL}"
+            f"{Fore.WHITE+Style.BRIGHT} {balance} TAKER {Style.RESET_ALL}"
+        )
+        self.log(
+            f"{Fore.MAGENTA+Style.BRIGHT}   ● {Style.RESET_ALL}"
+            f"{Fore.CYAN+Style.BRIGHT}Tx Fees :{Style.RESET_ALL}"
+            f"{Fore.WHITE+Style.BRIGHT} {str(tx_fees)} TAKER {Style.RESET_ALL}"
+        )
+
+        if balance < tx_fees:
+            self.log(
+                f"{Fore.MAGENTA+Style.BRIGHT}   ● {Style.RESET_ALL}"
+                f"{Fore.CYAN+Style.BRIGHT}Status  :{Style.RESET_ALL}"
+                f"{Fore.YELLOW+Style.BRIGHT} Insufficient TAKER Balance {Style.RESET_ALL}"
+            )
+            return
+
+        tx_hash, block_number = await self.perform_onchain(account, address)
+        if tx_hash and block_number:
+            explorer = f"https://explorer.taker.xyz/tx/{tx_hash}"
+
+            self.log(
+                f"{Fore.MAGENTA+Style.BRIGHT}   ● {Style.RESET_ALL}"
+                f"{Fore.CYAN+Style.BRIGHT}Block   :{Style.RESET_ALL}"
+                f"{Fore.WHITE+Style.BRIGHT} {block_number} {Style.RESET_ALL}"
+            )
+            self.log(
+                f"{Fore.MAGENTA+Style.BRIGHT}   ● {Style.RESET_ALL}"
+                f"{Fore.CYAN+Style.BRIGHT}Tx Hash :{Style.RESET_ALL}"
+                f"{Fore.WHITE+Style.BRIGHT} {tx_hash} {Style.RESET_ALL}"
+            )
+            self.log(
+                f"{Fore.MAGENTA+Style.BRIGHT}   ● {Style.RESET_ALL}"
+                f"{Fore.CYAN+Style.BRIGHT}Explorer:{Style.RESET_ALL}"
+                f"{Fore.WHITE+Style.BRIGHT} {explorer} {Style.RESET_ALL}"
+            )
+            return True
+        
+        return False
+            
     async def process_accounts(self, account: str, address: str, use_proxy: bool, rotate_proxy: bool):
         is_valid = await self.process_check_connection(address, use_proxy, rotate_proxy)
         if is_valid:
@@ -503,44 +548,22 @@ class TakerProtocol:
                     reactived_time_utc = last_mining + 86400
 
                     if int(time.time()) > reactived_time_utc:
-
-                        tx_hash, block_number = await self.perform_onchain_txn(account, address)
-                        if tx_hash and block_number:
-                            explorer = f"https://explorer.taker.xyz/tx/{tx_hash}"
-
+                        is_able = await self.process_activate_mining(account, address)
+                        if is_able:
                             start = await self.start_mining(token, False, proxy)
                             if start and start.get("data") == "ok":
                                 self.log(
-                                    f"{Fore.CYAN+Style.BRIGHT}Mining    :{Style.RESET_ALL}"
-                                    f"{Fore.GREEN+Style.BRIGHT} Activated Successfully {Style.RESET_ALL}"
-                                )
-                                self.log(
-                                    f"{Fore.CYAN+Style.BRIGHT}     ●{Style.RESET_ALL}"
-                                    f"{Fore.WHITE+Style.BRIGHT} Block Number: {Style.RESET_ALL}"
-                                    f"{Fore.BLUE+Style.BRIGHT}{block_number}{Style.RESET_ALL}"
-                                )
-                                self.log(
-                                    f"{Fore.CYAN+Style.BRIGHT}     ●{Style.RESET_ALL}"
-                                    f"{Fore.WHITE+Style.BRIGHT} Tx Hash     : {Style.RESET_ALL}"
-                                    f"{Fore.BLUE+Style.BRIGHT}{tx_hash}{Style.RESET_ALL}"
-                                )
-                                self.log(
-                                    f"{Fore.CYAN+Style.BRIGHT}     ●{Style.RESET_ALL}"
-                                    f"{Fore.WHITE+Style.BRIGHT} Explorer    : {Style.RESET_ALL}"
-                                    f"{Fore.BLUE+Style.BRIGHT}{explorer}{Style.RESET_ALL}"
+                                    f"{Fore.MAGENTA+Style.BRIGHT}   ● {Style.RESET_ALL}"
+                                    f"{Fore.CYAN+Style.BRIGHT}Status  :{Style.RESET_ALL}"
+                                    f"{Fore.GREEN+Style.BRIGHT} Mining Activated Successfully {Style.RESET_ALL}"
                                 )
                             else:
                                 self.log(
-                                    f"{Fore.CYAN+Style.BRIGHT}Mining    :{Style.RESET_ALL}"
-                                    f"{Fore.RED+Style.BRIGHT} Activation Failed {Style.RESET_ALL}"
+                                    f"{Fore.MAGENTA+Style.BRIGHT}   ● {Style.RESET_ALL}"
+                                    f"{Fore.CYAN+Style.BRIGHT}Status  :{Style.RESET_ALL}"
+                                    f"{Fore.RED+Style.BRIGHT} Mining Activatation Failed {Style.RESET_ALL}"
                                 )
-                        else:
-                            self.log(
-                                f"{Fore.CYAN+Style.BRIGHT}Mining    :{Style.RESET_ALL}"
-                                f"{Fore.RED+Style.BRIGHT} Activation Failed {Style.RESET_ALL}"
-                                f"{Fore.MAGENTA+Style.BRIGHT}-{Style.RESET_ALL}"
-                                f"{Fore.YELLOW+Style.BRIGHT} Perform On-Chain Txn Failed {Style.RESET_ALL}"
-                            )
+                        
                     else:
                         reactived_time_wib = datetime.fromtimestamp(reactived_time_utc).astimezone(wib).strftime('%x %X %Z')
                         self.log(
@@ -554,50 +577,6 @@ class TakerProtocol:
                 self.log(
                     f"{Fore.CYAN+Style.BRIGHT}Mining    :{Style.RESET_ALL}"
                     f"{Fore.RED+Style.BRIGHT} GET Status Failed {Style.RESET_ALL}"
-                )
-
-            task_lists = await self.task_lists(token, proxy)
-            if task_lists and task_lists.get("msg") == "SUCCESS":
-                self.log(f"{Fore.CYAN+Style.BRIGHT}Task Lists:{Style.RESET_ALL}")
-
-                tasks = task_lists.get("data", [])
-                if tasks:
-                    for task in tasks:
-                        if task:
-                            task_id = task["assignmentId"]
-                            title = task["title"]
-                            reward = task["reward"]
-                            is_done = task["done"]
-
-                            if is_done:
-                                self.log(
-                                    f"{Fore.CYAN+Style.BRIGHT}      > {Style.RESET_ALL}"
-                                    f"{Fore.WHITE+Style.BRIGHT}{title}{Style.RESET_ALL}"
-                                    f"{Fore.YELLOW+Style.BRIGHT} Already Completed {Style.RESET_ALL}"
-                                )
-                                continue
-
-                            complete = await self.complete_tasks(token, task_id, proxy)
-                            if complete and complete.get("data", None):
-                                self.log(
-                                    f"{Fore.CYAN+Style.BRIGHT}      > {Style.RESET_ALL}"
-                                    f"{Fore.WHITE+Style.BRIGHT}{title}{Style.RESET_ALL}"
-                                    f"{Fore.GREEN+Style.BRIGHT} Completed {Style.RESET_ALL}"
-                                    f"{Fore.MAGENTA+Style.BRIGHT}-{Style.RESET_ALL}"
-                                    f"{Fore.CYAN+Style.BRIGHT} Reward {Style.RESET_ALL}"
-                                    f"{Fore.WHITE+Style.BRIGHT}{reward} Opoints{Style.RESET_ALL}"
-                                )
-                            else:
-                                self.log(
-                                    f"{Fore.CYAN+Style.BRIGHT}      > {Style.RESET_ALL}"
-                                    f"{Fore.WHITE+Style.BRIGHT}{title}{Style.RESET_ALL}"
-                                    f"{Fore.RED+Style.BRIGHT} Not Completed {Style.RESET_ALL}"
-                                )
-
-            else:
-                self.log(
-                    f"{Fore.CYAN+Style.BRIGHT}Task Lists:{Style.RESET_ALL}"
-                    f"{Fore.GREEN+Style.BRIGHT} GET Lists Data Failed {Style.RESET_ALL}"
                 )
 
     async def main(self):
@@ -626,13 +605,15 @@ class TakerProtocol:
                 for account in accounts:
                     if account:
                         address = self.generate_address(account)
-                        self.log(
-                            f"{Fore.CYAN + Style.BRIGHT}{separator}[{Style.RESET_ALL}"
-                            f"{Fore.WHITE + Style.BRIGHT} {self.mask_account(address)} {Style.RESET_ALL}"
-                            f"{Fore.CYAN + Style.BRIGHT}]{separator}{Style.RESET_ALL}"
-                        )
-                        await self.process_accounts(account, address, use_proxy, rotate_proxy)
-                        await asyncio.sleep(3)
+
+                        if address:
+                            self.log(
+                                f"{Fore.CYAN + Style.BRIGHT}{separator}[{Style.RESET_ALL}"
+                                f"{Fore.WHITE + Style.BRIGHT} {self.mask_account(address)} {Style.RESET_ALL}"
+                                f"{Fore.CYAN + Style.BRIGHT}]{separator}{Style.RESET_ALL}"
+                            )
+                            await self.process_accounts(account, address, use_proxy, rotate_proxy)
+                            await asyncio.sleep(3)
 
                 self.log(f"{Fore.CYAN + Style.BRIGHT}={Style.RESET_ALL}"*72)
                 seconds = 12 * 60 * 60
@@ -654,6 +635,7 @@ class TakerProtocol:
             return
         except Exception as e:
             self.log(f"{Fore.RED+Style.BRIGHT}Error: {e}{Style.RESET_ALL}")
+            raise e
 
 if __name__ == "__main__":
     try:
