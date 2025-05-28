@@ -161,7 +161,7 @@ class TakerProtocol:
                 return web3
             except Exception as e:
                 await asyncio.sleep(3)
-        raise Exception("Failed to Connect to RPC")
+        raise Exception(f"Failed to Connect to RPC: {str(e)}")
         
     async def get_token_balance(self, address: str):
         try:
@@ -172,28 +172,38 @@ class TakerProtocol:
 
             return token_balance
         except Exception as e:
+            self.log(
+                f"{Fore.CYAN+Style.BRIGHT}     Message :{Style.RESET_ALL}"
+                f"{Fore.RED+Style.BRIGHT} {str(e)} {Style.RESET_ALL}"
+            )
             return None
         
     async def perform_onchain(self, account: str, address: str):
         try:
             web3 = await self.get_web3_with_check()
+
             contract_address = web3.to_checksum_address(self.ACTIVATE_ROUTER_ADDRESS)
             token_contract = web3.eth.contract(address=contract_address, abi=self.ACTIVATE_CONTRACT_ABI)
 
             active_data = token_contract.functions.active()
             estimated_gas = active_data.estimate_gas({"from": address})
 
-            tx = token_contract.functions.active().build_transaction({
+            max_priority_fee = web3.to_wei(0.001, "gwei")
+            max_fee = max_priority_fee
+
+            active_tx = active_data.build_transaction({
                 "from": address,
-                "nonce": web3.eth.get_transaction_count(address, "pending"),
                 "gas": int(estimated_gas),
-                "gasPrice": web3.eth.gas_price
+                "maxFeePerGas": int(max_fee),
+                "maxPriorityFeePerGas": int(max_priority_fee),
+                "nonce": web3.eth.get_transaction_count(address, "pending"),
+                "chainId": web3.eth.chain_id,
             })
 
-            signed_tx = web3.eth.account.sign_transaction(tx, account)
+            signed_tx = web3.eth.account.sign_transaction(active_tx, account)
             raw_tx = web3.eth.send_raw_transaction(signed_tx.raw_transaction)
             tx_hash = web3.to_hex(raw_tx)
-            receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
+            receipt = await asyncio.to_thread(web3.eth.wait_for_transaction_receipt, tx_hash, timeout=300)
             block_number = receipt.blockNumber
 
             return tx_hash, block_number
@@ -429,7 +439,7 @@ class TakerProtocol:
         self.log(f"{Fore.CYAN+Style.BRIGHT}Mining    :{Style.RESET_ALL}")
 
         balance = await self.get_token_balance(address)
-        tx_fees = 60305000000 / (10 ** 18)
+        tx_fees = 0.000000060305
         self.log(
             f"{Fore.MAGENTA+Style.BRIGHT}   ● {Style.RESET_ALL}"
             f"{Fore.CYAN+Style.BRIGHT}Balance :{Style.RESET_ALL}"
@@ -438,10 +448,10 @@ class TakerProtocol:
         self.log(
             f"{Fore.MAGENTA+Style.BRIGHT}   ● {Style.RESET_ALL}"
             f"{Fore.CYAN+Style.BRIGHT}Tx Fees :{Style.RESET_ALL}"
-            f"{Fore.WHITE+Style.BRIGHT} {str(tx_fees)} TAKER {Style.RESET_ALL}"
+            f"{Fore.WHITE+Style.BRIGHT} {tx_fees} TAKER {Style.RESET_ALL}"
         )
 
-        if balance < tx_fees:
+        if not balance or balance < tx_fees:
             self.log(
                 f"{Fore.MAGENTA+Style.BRIGHT}   ● {Style.RESET_ALL}"
                 f"{Fore.CYAN+Style.BRIGHT}Status  :{Style.RESET_ALL}"
