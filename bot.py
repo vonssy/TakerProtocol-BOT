@@ -535,7 +535,7 @@ class TakerProtocol:
                         reactived_time_utc = last_mining + 86400
 
                         if int(time.time()) > reactived_time_utc:
-                            is_able = await self.process_activate_mining(account, address)
+                            is_able = await self.process_activate_mining(account, address, use_proxy)
                             if is_able:
                                 start = await self.start_mining(address, False, proxy)
                                 if start and start.get("msg") == "SUCCESS":
@@ -590,6 +590,10 @@ class TakerProtocol:
                         )
 
                         if not address:
+                            self.log(
+                                f"{Fore.CYAN + Style.BRIGHT}Status    :{Style.RESET_ALL}"
+                                f"{Fore.RED + Style.BRIGHT} Invalid Private Key or Library Version Not Supported {Style.RESET_ALL}"
+                            )
                             continue
 
                         await self.process_accounts(account, address, use_proxy, rotate_proxy)
